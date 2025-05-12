@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cosmic Click-to-Record</title>
-  <link rel="stylesheet" href="style.css" />
   <style>
     body {
       cursor: none;
@@ -16,6 +15,16 @@
       font-family: sans-serif;
     }
 
+    .hero {
+      height: 100vh;
+      width: 100vw;
+      background: url('./background.png') no-repeat center center / cover;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
     .cursor-dot {
       position: fixed;
       top: 0;
@@ -25,7 +34,7 @@
       background: #00ffe0;
       border-radius: 50%;
       pointer-events: none;
-      z-index: 100000;
+      z-index: 100010;
       transform: translate(-50%, -50%);
       box-shadow: 0 0 10px #00ffe0, 0 0 20px #00ffe0;
       transition: transform 0.1s ease, background 0.2s, box-shadow 0.2s;
@@ -60,18 +69,6 @@
       pointer-events: none;
     }
 
-    .webcam-muted::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.3);
-      border-radius: 10px;
-      pointer-events: none;
-    }
-
     #recordDot {
       position: fixed;
       top: 20px;
@@ -91,10 +88,78 @@
       50% { opacity: 0.2; }
     }
 
-    .draggable {
+    #stopBtn {
       position: fixed;
-      cursor: move;
-      user-select: none;
+      bottom: 40px;
+      left: 40px;
+      padding: 12px 24px;
+      font-size: 1.2rem;
+      background: #ff0044;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(255, 0, 80, 0.5);
+      z-index: 100002;
+      display: none;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+
+    #previewModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      width: 100vw;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100005;
+      backdrop-filter: blur(6px);
+      padding: 40px;
+      box-sizing: border-box;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    #previewVideo {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+      background: black;
+      margin-bottom: 24px;
+      transition: all 0.3s ease;
+    }
+
+    .preview-buttons {
+      display: flex;
+      gap: 20px;
+    }
+
+    .preview-buttons button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #00ffe0;
+      color: black;
+      font-weight: 600;
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.3);
+      transition: 0.25s;
+    }
+
+    .preview-buttons button:hover {
+      background: #00bfa5;
+      color: white;
+      transform: scale(1.05);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
     }
   </style>
 </head>
@@ -102,15 +167,21 @@
   <div class="cursor-dot" id="cursor"></div>
   <div class="hero">
     <button id="portal"></button>
+    <div id="clickNote">Click anywhere to start recording</div>
   </div>
-  <div id="clickNote">Click anywhere to start recording</div>
-  <div id="downloadBanner">🎉 Downloading your cosmic recording...</div>
-  <div id="countdownOverlay"></div>
+
   <div id="recordDot"></div>
   <button id="stopBtn">⏹ Stop Recording</button>
 
+  <div id="previewModal">
+    <video id="previewVideo" controls></video>
+    <div class="preview-buttons">
+      <button id="downloadBtn">⬇ Download</button>
+      <button id="closePreviewBtn">✖️ Dismiss</button>
+    </div>
+  </div>
 
-  <script>
+<script>
   let screenStream, webcamStream, micStream, mediaRecorder;
   let recordedChunks = [];
   let recordingActive = false;
@@ -130,157 +201,107 @@
   });
 
   async function initializeStreams() {
-    try {
-      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Remove existing preview videos
-      document.querySelectorAll("video").forEach(v => v.remove());
-
-      const webcamVideo = document.createElement("video");
-      webcamVideo.srcObject = webcamStream;
-      webcamVideo.muted = true;
-      webcamVideo.autoplay = true;
-      Object.assign(webcamVideo.style, {
-        position: "fixed",
-        bottom: "20px",
-        right: "20px",
-        width: "180px",
-        height: "135px",
-        zIndex: 100,
-        border: "3px solid #00ffe0",
-        borderRadius: "12px",
-        boxShadow: "0 0 30px rgba(0,255,255,0.5)",
-        backgroundColor: "black"
-      });
-      webcamVideo.classList.add("webcam-muted", "draggable");
-      document.body.appendChild(webcamVideo);
-      makeDraggable(webcamVideo);
-
-      return true;
-    } catch (err) {
-      alert("Permission denied or error occurred.");
-      return false;
-    }
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return true;
   }
 
   function startRecording() {
-  const canvas = document.createElement("canvas");
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  canvas.style.display = "none";
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext("2d");
+    const canvas = document.createElement("canvas");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.display = "none";
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
 
-  const screenVideo = document.createElement("video");
-  screenVideo.srcObject = screenStream;
-  screenVideo.muted = true;
-  screenVideo.play();
+    const screenVideo = document.createElement("video");
+    screenVideo.srcObject = screenStream;
+    screenVideo.play();
 
-  const webcamVideo = document.createElement("video");
-  webcamVideo.srcObject = webcamStream;
-  webcamVideo.muted = true;
-  webcamVideo.play();
+    const webcamVideo = document.createElement("video");
+    webcamVideo.srcObject = webcamStream;
+    webcamVideo.play();
 
-  // draw both to canvas in loop
-  const drawLoop = () => {
-    ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height); // Full screen
-    const camWidth = 240;
-    const camHeight = 180;
-    ctx.drawImage(webcamVideo, canvas.width - camWidth - 30, canvas.height - camHeight - 30, camWidth, camHeight); // Webcam PiP
-    requestAnimationFrame(drawLoop);
-  };
-  drawLoop();
+    const drawLoop = () => {
+      ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+      const camW = 240, camH = 180;
+      ctx.drawImage(webcamVideo, canvas.width - camW - 30, canvas.height - camH - 30, camW, camH);
+      requestAnimationFrame(drawLoop);
+    };
+    drawLoop();
 
-  const canvasStream = canvas.captureStream(30); // 30 FPS
-  const combinedStream = new MediaStream([
-    ...canvasStream.getVideoTracks(),
-    ...micStream.getAudioTracks()
-  ]);
+    const canvasStream = canvas.captureStream(30);
+    const combinedStream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...micStream.getAudioTracks()
+    ]);
 
-  mediaRecorder = new MediaRecorder(combinedStream);
+    mediaRecorder = new MediaRecorder(combinedStream);
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
 
-  mediaRecorder.ondataavailable = e => {
-    if (e.data.size > 0) recordedChunks.push(e.data);
-  };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
 
-  mediaRecorder.onstop = () => {
-    const blob = new Blob(recordedChunks, { type: "video/webm" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "recording.webm";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-      a.remove();
-      recordedChunks = [];
-    }, 1500);
+      const previewModal = document.getElementById("previewModal");
+      const previewVideo = document.getElementById("previewVideo");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const closePreviewBtn = document.getElementById("closePreviewBtn");
 
-    document.getElementById("recordDot").style.display = "none";
-    document.getElementById("stopBtn").style.display = "none";
-    recordingActive = false;
-    canvas.remove();
-  };
+      previewVideo.src = url;
+      previewModal.style.display = "flex";
 
-  mediaRecorder.start();
-  document.getElementById("recordDot").style.display = "block";
-  document.getElementById("stopBtn").style.display = "block";
-  recordingActive = true;
-}
+      previewVideo.onloadedmetadata = () => {
+        const aspect = previewVideo.videoWidth / previewVideo.videoHeight;
+        if (aspect > 1.5) {
+          previewVideo.style.width = '90vw';
+          previewVideo.style.height = 'auto';
+        } else {
+          previewVideo.style.height = '70vh';
+          previewVideo.style.width = 'auto';
+        }
+      };
 
+      downloadBtn.onclick = () => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "recording.webm";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        previewModal.style.display = "none";
+        URL.revokeObjectURL(url);
+        recordedChunks = [];
+      };
+
+      closePreviewBtn.onclick = () => {
+        previewModal.style.display = "none";
+        URL.revokeObjectURL(url);
+        recordedChunks = [];
+      };
+
+      document.getElementById("recordDot").style.display = "none";
+      document.getElementById("stopBtn").style.display = "none";
+      recordingActive = false;
+      canvas.remove();
+    };
+
+    mediaRecorder.start();
+    document.getElementById("recordDot").style.display = "block";
+    document.getElementById("stopBtn").style.display = "block";
+    recordingActive = true;
+  }
 
   function stopRecording() {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
-      screenStream.getTracks().forEach(track => track.stop());
-      webcamStream.getTracks().forEach(track => track.stop());
-      micStream.getTracks().forEach(track => track.stop());
-      document.querySelectorAll("video").forEach(v => v.remove());
+      screenStream.getTracks().forEach(t => t.stop());
+      webcamStream.getTracks().forEach(t => t.stop());
+      micStream.getTracks().forEach(t => t.stop());
     }
-  }
-
-  function triggerCountdownThenRecord() {
-    const countdownOverlay = document.getElementById("countdownOverlay");
-    let countdown = 3;
-    countdownOverlay.style.display = "block";
-    countdownOverlay.textContent = countdown;
-
-    const interval = setInterval(() => {
-      countdown--;
-      if (countdown > 0) {
-        countdownOverlay.textContent = countdown;
-      } else {
-        clearInterval(interval);
-        countdownOverlay.style.display = "none";
-        startRecording();
-      }
-    }, 1000);
-  }
-
-  function makeDraggable(element) {
-    let isDragging = false;
-    let offsetX = 0, offsetY = 0;
-
-    element.addEventListener("mousedown", e => {
-      isDragging = true;
-      offsetX = e.clientX - element.getBoundingClientRect().left;
-      offsetY = e.clientY - element.getBoundingClientRect().top;
-      element.style.zIndex = 100000;
-    });
-
-    document.addEventListener("mousemove", e => {
-      if (isDragging) {
-        element.style.left = `${e.clientX - offsetX}px`;
-        element.style.top = `${e.clientY - offsetY}px`;
-      }
-    });
-
-    document.addEventListener("mouseup", () => {
-      isDragging = false;
-    });
   }
 
   async function handleRecordingTrigger() {
@@ -293,14 +314,14 @@
     }
 
     if (!recordingActive) {
-      triggerCountdownThenRecord();
+      startRecording();
     } else {
       stopRecording();
     }
   }
 
   document.addEventListener("click", handleRecordingTrigger);
+  document.getElementById("stopBtn").addEventListener("click", stopRecording);
 </script>
-
 </body>
 </html>

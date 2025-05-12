@@ -41,15 +41,22 @@
     }
 
     .trail {
-      position: fixed;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: radial-gradient(circle, #00ffe0 0%, #007bff 100%);
-      pointer-events: none;
-      z-index: 99999;
-      transform: translate(-50%, -50%);
-      opacity: 0.6;
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-50%, -50%);
+  animation: fadeTrail 2.5s ease-out forwards;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+@keyframes fadeTrail {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
     }
 
     #clickNote {
@@ -166,7 +173,6 @@
 <body>
   <div class="cursor-dot" id="cursor"></div>
   <div class="hero">
-    <button id="portal"></button>
     <div id="clickNote">Click anywhere to start recording</div>
   </div>
 
@@ -185,6 +191,7 @@
   let screenStream, webcamStream, micStream, mediaRecorder;
   let recordedChunks = [];
   let recordingActive = false;
+  let hue = 0;
 
   const cursor = document.getElementById("cursor");
 
@@ -196,8 +203,13 @@
     trail.className = "trail";
     trail.style.top = `${e.clientY}px`;
     trail.style.left = `${e.clientX}px`;
+
+    // Cosmic rainbow trail color
+    trail.style.background = `hsl(${hue}, 100%, 65%)`;
+    hue = (hue + 10) % 360;
+
     document.body.appendChild(trail);
-    setTimeout(() => trail.remove(), 300);
+    setTimeout(() => trail.remove(), 2500); // matches fade animation
   });
 
   async function initializeStreams() {
@@ -215,85 +227,99 @@
     document.body.appendChild(canvas);
     const ctx = canvas.getContext("2d");
 
-    const screenVideo = document.createElement("video");
-    screenVideo.srcObject = screenStream;
-    screenVideo.play();
+  const screenVideo = document.createElement("video");
+  screenVideo.srcObject = screenStream;
+  screenVideo.play();
 
-    const webcamVideo = document.createElement("video");
-    webcamVideo.srcObject = webcamStream;
-    webcamVideo.play();
+  const webcamVideo = document.createElement("video");
+  webcamVideo.srcObject = webcamStream;
+  webcamVideo.play();
 
-    const drawLoop = () => {
-      ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
-      const camW = 240, camH = 180;
-      ctx.drawImage(webcamVideo, canvas.width - camW - 30, canvas.height - camH - 30, camW, camH);
-      requestAnimationFrame(drawLoop);
-    };
-    drawLoop();
+  const drawLoop = () => {
+    // 🔥 Real-time enhancement filter
+    ctx.filter = "contrast(1.2) brightness(1.05) saturate(1.25)";
 
-    const canvasStream = canvas.captureStream(30);
-    const combinedStream = new MediaStream([
-      ...canvasStream.getVideoTracks(),
-      ...micStream.getAudioTracks()
-    ]);
+    // Draw screen feed
+    ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
 
-    mediaRecorder = new MediaRecorder(combinedStream);
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) recordedChunks.push(e.data);
-    };
+    // Draw PiP webcam
+    const camW = 240, camH = 180;
+    ctx.drawImage(
+      webcamVideo,
+      canvas.width - camW - 30,
+      canvas.height - camH - 30,
+      camW,
+      camH
+    );
 
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: "video/webm" });
-      const url = URL.createObjectURL(blob);
+    requestAnimationFrame(drawLoop);
+  };
+  drawLoop();
 
-      const previewModal = document.getElementById("previewModal");
-      const previewVideo = document.getElementById("previewVideo");
-      const downloadBtn = document.getElementById("downloadBtn");
-      const closePreviewBtn = document.getElementById("closePreviewBtn");
+  const canvasStream = canvas.captureStream(30);
+  const combinedStream = new MediaStream([
+    ...canvasStream.getVideoTracks(),
+    ...micStream.getAudioTracks()
+  ]);
 
-      previewVideo.src = url;
-      previewModal.style.display = "flex";
+  mediaRecorder = new MediaRecorder(combinedStream);
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
 
-      previewVideo.onloadedmetadata = () => {
-        const aspect = previewVideo.videoWidth / previewVideo.videoHeight;
-        if (aspect > 1.5) {
-          previewVideo.style.width = '90vw';
-          previewVideo.style.height = 'auto';
-        } else {
-          previewVideo.style.height = '70vh';
-          previewVideo.style.width = 'auto';
-        }
-      };
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(recordedChunks, { type: "video/webm" });
+    const url = URL.createObjectURL(blob);
 
-      downloadBtn.onclick = () => {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "recording.webm";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        previewModal.style.display = "none";
-        URL.revokeObjectURL(url);
-        recordedChunks = [];
-      };
+    const previewModal = document.getElementById("previewModal");
+    const previewVideo = document.getElementById("previewVideo");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const closePreviewBtn = document.getElementById("closePreviewBtn");
 
-      closePreviewBtn.onclick = () => {
-        previewModal.style.display = "none";
-        URL.revokeObjectURL(url);
-        recordedChunks = [];
-      };
+    previewVideo.src = url;
+    previewModal.style.display = "flex";
 
-      document.getElementById("recordDot").style.display = "none";
-      document.getElementById("stopBtn").style.display = "none";
-      recordingActive = false;
-      canvas.remove();
+    previewVideo.onloadedmetadata = () => {
+      const aspect = previewVideo.videoWidth / previewVideo.videoHeight;
+      if (aspect > 1.5) {
+        previewVideo.style.width = '90vw';
+        previewVideo.style.height = 'auto';
+      } else {
+        previewVideo.style.height = '70vh';
+        previewVideo.style.width = 'auto';
+      }
     };
 
-    mediaRecorder.start();
-    document.getElementById("recordDot").style.display = "block";
-    document.getElementById("stopBtn").style.display = "block";
-    recordingActive = true;
-  }
+    downloadBtn.onclick = () => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "recording.webm";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      previewModal.style.display = "none";
+      URL.revokeObjectURL(url);
+      recordedChunks = [];
+    };
+
+    closePreviewBtn.onclick = () => {
+      previewModal.style.display = "none";
+      URL.revokeObjectURL(url);
+      recordedChunks = [];
+    };
+
+    document.getElementById("recordDot").style.display = "none";
+    document.getElementById("stopBtn").style.display = "none";
+    recordingActive = false;
+    canvas.remove();
+  };
+
+  mediaRecorder.start();
+  document.getElementById("recordDot").style.display = "block";
+  document.getElementById("stopBtn").style.display = "block";
+  recordingActive = true;
+}
+
 
   function stopRecording() {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {

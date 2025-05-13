@@ -59,6 +59,23 @@
 
     }
 
+    #clickNote {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5rem;
+      background: rgba(0, 0, 0, 0.6);
+      color: #00ffe0;
+      padding: 16px 24px;
+      border-radius: 12px;
+      z-index: 100000;
+      font-family: sans-serif;
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.3);
+      text-align: center;
+      pointer-events: none;
+    }
+
     #recordDot {
       position: fixed;
       top: 20px;
@@ -156,7 +173,6 @@
 <body>
   <div class="cursor-dot" id="cursor"></div>
   <div class="hero">
-    <div id="clickNote">Click anywhere to start recording</div>
   </div>
 
   <div id="recordDot"></div>
